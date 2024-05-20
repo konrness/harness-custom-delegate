@@ -23,6 +23,7 @@ pipeline:
             spec:
               connectorRef: account.cidemo
               namespace: konr-se-sandbox
+              automountServiceAccountToken: true
               nodeSelector: {}
               os: Linux
           execution:
@@ -92,7 +93,7 @@ pipeline:
                           - name: SELECTED_TAG
                       when:
                         stageStatus: Success
-                      failureStrategies: []
+                        condition: "false"
                   - step:
                       type: Run
                       name: Fetch Latest Delegate Tag from API
@@ -109,29 +110,7 @@ pipeline:
                           else
 
                             # get supported delegates for Harness Account
-                            IMAGE_TAGS=$(curl -s -H "x-api-key: ${API_KEY}" https://app.harness.io/gateway/api/version/supportedDelegate?accountId=${ACCOUNT_ID} | jq -r '.results|.[]|.name')
-
-                            # TODO: Once this API is released update this JSON parsing to expose SELECTED_TAG env var
-
-                            # build a list of images from tags
-                            for j in ${IMAGE_TAGS}
-                            do
-                              # filter tag list to matching regex
-                              if [[ "${j}" =~ $TAG_REGEX ]]; then
-                                # add matching tag to list
-                                TAG_LIST="${TAG_LIST} ${j}"
-                              fi
-                            done
-
-                            # output list of all docker images
-                            echo "All tags available:"
-                            for i in ${TAG_LIST}
-                            do
-                              echo ${i}
-                            done
-
-                            echo "\Selected tag:"
-                            SELECTED_TAG=$(echo ${TAG_LIST} | cut -d ' ' -f1)
+                            SELECTED_TAG=$(curl -s -H "x-api-key: ${API_KEY}" https://app.harness.io/gateway/api/version/supportedDelegate?accountId=${ACCOUNT_ID} | jq -r '.resource.latestSupportedVersion')
 
                           fi
 
@@ -139,10 +118,10 @@ pipeline:
                         envVariables:
                           ACCOUNT_ID: <+pipeline.variables.account_id>
                           API_KEY: <+pipeline.variables.harness_api_key>
+                        outputVariables:
+                          - name: SELECTED_TAG
                       when:
                         stageStatus: Success
-                        condition: true==false
-                      failureStrategies: []
               - step:
                   type: BuildAndPushDockerRegistry
                   name: Build and Push
@@ -151,7 +130,7 @@ pipeline:
                     connectorRef: konrness_Docker_Hub
                     repo: konrness/harness-delegate-<+pipeline.variables.image_suffix>
                     tags:
-                      - <+execution.steps.Fetch_Latest_Delegate_Tag.output.outputVariables.SELECTED_TAG>
+                      - <+execution.steps.Fetch_Latest_Delegate_Tag_from_API.output.outputVariables.SELECTED_TAG>
                     dockerfile: Dockerfile-<+pipeline.variables.image_suffix>
                     buildArgs:
                       BASE_IMAGE_TAG: <+execution.steps.Fetch_Latest_Delegate_Tag.output.outputVariables.SELECTED_TAG>
