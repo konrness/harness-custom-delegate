@@ -93,7 +93,6 @@ pipeline:
                           - name: SELECTED_TAG
                       when:
                         stageStatus: Success
-                        condition: "false"
                   - step:
                       type: Run
                       name: Fetch Latest Delegate Tag from API
@@ -107,6 +106,10 @@ pipeline:
                           then
                             # Pipeline was triggered off of a new artifact tag, so use that tag
                             SELECTED_TAG="<+trigger.artifact.build>"
+                          elif [ "<+pipeline.variables.override_image_tag>" != "" ]
+                          then
+                            # An override image tag was provided as run-time input
+                            SELECTED_TAG="<+pipeline.variables.override_image_tag>"
                           else
 
                             # get supported delegates for Harness Account
@@ -122,6 +125,7 @@ pipeline:
                           - name: SELECTED_TAG
                       when:
                         stageStatus: Success
+                        condition: "false"
               - step:
                   type: BuildAndPushDockerRegistry
                   name: Build and Push
@@ -130,7 +134,7 @@ pipeline:
                     connectorRef: konrness_Docker_Hub
                     repo: konrness/harness-delegate-<+pipeline.variables.image_suffix>
                     tags:
-                      - <+execution.steps.Fetch_Latest_Delegate_Tag_from_API.output.outputVariables.SELECTED_TAG>
+                      - <+execution.steps. Fetch_Latest_Delegate_Tag.output.outputVariables.SELECTED_TAG>
                     dockerfile: Dockerfile-<+pipeline.variables.image_suffix>
                     buildArgs:
                       BASE_IMAGE_TAG: <+execution.steps.Fetch_Latest_Delegate_Tag.output.outputVariables.SELECTED_TAG>
@@ -139,6 +143,8 @@ pipeline:
                       limits:
                         memory: 3Gi
                         cpu: "1"
+                  when:
+                    stageStatus: Success
   variables:
     - name: docker_username
       type: String
